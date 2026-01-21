@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mini Market Scanner</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Mini Market">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2/dist/quagga.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&family=Quicksand:wght@500;700&display=swap');
+        
+        body {
+            font-family: 'Quicksand', sans-serif;
+            background-color: #f8fafc;
+            touch-action: manipulation;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .kids-font { font-family: 'Fredoka', sans-serif; }
+
+        #camera-wrapper {
+            position: relative;
+            width: 100%;
+            height: 40vh; 
+            background: #000;
+            overflow: hidden;
+            border-bottom: 8px solid #3b82f6;
+        }
+
+        #interactive.viewport {
+            width: 100%;
+            height: 100%;
+        }
+
+        #interactive.viewport video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        canvas.drawingBuffer { display: none; }
+
+        .scanner-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .scan-window {
+            position: relative;
+            width: 70%;
+            height: 55%;
+            border: 4px solid #4ade80;
+            border-radius: 24px;
+            box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.4);
+        }
+
+        .laser {
+            position: absolute;
+            width: 100%;
+            height: 3px;
+            background: #4ade80;
+            box-shadow: 0 0 12px 2px #4ade80;
+            top: 0;
+            animation: moveLaser 2.5s infinite ease-in-out;
+        }
+
+        @keyframes moveLaser {
+            0%, 100% { top: 10%; opacity: 0.4; }
+            50% { top: 85%; opacity: 1; }
+        }
+
+        .flash-active {
+            animation: quickFlash 0.2s ease-out forwards;
+        }
+        @keyframes quickFlash {
+            0% { background: rgba(255, 255, 255, 0.9); }
+            100% { background: transparent; }
+        }
+
+        .btn-bubble:active {
+            transform: scale(0.96);
+        }
+
+        .item-card {
+            animation: slideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes slideIn {
+            from { transform: translateY(10px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="flex flex-col h-full bg-slate-50">
+
+    <header class="bg-white px-4 py-3 flex justify-between items-center shadow-sm z-50">
+        <div class="flex items-center gap-2">
+            <span class="text-2xl">🛒</span>
+            <h1 class="kids-font text-blue-600 text-xl font-semibold tracking-tight">Mini Market</h1>
+        </div>
+        <div class="flex bg-slate-100 p-1 rounded-2xl">
+            <button onclick="switchTab('play')" id="btn-play" class="kids-font px-5 py-2 rounded-xl text-sm font-semibold transition-all bg-white shadow-sm text-blue-600">Scan</button>
+            <button onclick="switchTab('manage')" id="btn-manage" class="kids-font px-5 py-2 rounded-xl text-sm font-semibold transition-all text-slate-500">Items</button>
+        </div>
+    </header>
+
+    <main id="play-screen" class="flex-1 flex flex-col h-full overflow-hidden">
+        <div id="camera-wrapper">
+            <div id="interactive" class="viewport"></div>
+            <div class="scanner-overlay">
+                <div class="scan-window">
+                    <div class="laser"></div>
+                </div>
+            </div>
+            <div id="flash" class="absolute inset-0 z-20 pointer-events-none"></div>
+            <div id="camera-loading" class="absolute inset-0 flex items-center justify-center bg-black z-30 transition-opacity duration-500">
+                <div class="text-center">
+                    <div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500 mx-auto mb-3"></div>
+                    <p class="text-white text-xs kids-font">Warming up scanner...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-1 bg-white flex flex-col overflow-hidden">
+            <div class="px-6 py-3 flex justify-between items-end border-b bg-slate-50/50">
+                <div>
+                    <h2 class="kids-font text-slate-400 text-[10px] uppercase tracking-widest">Basket</h2>
+                    <p id="item-count" class="kids-font text-slate-800 text-lg">0 Items</p>
+                </div>
+                <button onclick="clearBasket()" class="text-xs font-bold text-blue-500 pb-1">CLEAR ALL</button>
+            </div>
+
+            <div id="basket-list" class="flex-1 overflow-y-auto p-4 space-y-3">
+                <!-- Items go here -->
+            </div>
+
+            <div class="p-6 pb-10 bg-white border-t-4 border-blue-50 flex items-center justify-between">
+                <div>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase">Total</p>
+                    <p id="display-total" class="kids-font text-5xl text-blue-600 leading-none">$0.00</p>
+                </div>
+                <button onclick="checkout()" class="btn-bubble bg-blue-600 text-white kids-font px-8 py-4 rounded-3xl text-lg shadow-xl shadow-blue-200 transition-transform">
+                    CHECKOUT
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <main id="manage-screen" class="hidden flex-1 overflow-y-auto bg-slate-50 p-6 pb-24">
+        <div class="max-w-md mx-auto">
+            <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 mb-8">
+                <h3 class="kids-font text-lg text-slate-800 mb-4 text-center">Create New Item</h3>
+                <div class="space-y-4">
+                    <input type="text" id="in-name" placeholder="Item Name" class="w-full p-4 rounded-2xl bg-slate-50 outline-none border-2 border-transparent focus:border-blue-400">
+                    <input type="number" id="in-price" placeholder="Price ($)" step="0.01" class="w-full p-4 rounded-2xl bg-slate-50 outline-none border-2 border-transparent focus:border-blue-400">
+                    <button onclick="saveNewItem()" class="btn-bubble w-full bg-blue-600 text-white kids-font py-4 rounded-2xl font-bold transition-transform">SAVE ITEM</button>
+                </div>
+            </div>
+            <div id="inventory-grid" class="space-y-4"></div>
+        </div>
+    </main>
+
+    <script>
+        const DEFAULT_ITEMS = [
+            { id: '5501', name: 'Apple', price: 1.25 },
+            { id: '5502', name: 'Milk', price: 2.50 },
+            { id: '5503', name: 'Juice', price: 1.95 }
+        ];
+
+        let inventory = JSON.parse(localStorage.getItem('market_inventory')) || DEFAULT_ITEMS;
+        let cart = [];
+        let scannerActive = false;
+        let lastScanTime = 0;
+        let audioCtx = null;
+
+        function playBeep() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            osc.frequency.setValueAtTime(900, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            osc.connect(g); g.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+        }
+
+        function startCamera() {
+            const loader = document.getElementById('camera-loading');
+            Quagga.init({
+                inputStream: { name: "Live", type: "LiveStream", target: document.querySelector('#interactive'), constraints: { facingMode: "environment" } },
+                decoder: { readers: ["code_128_reader", "ean_reader"] },
+                locate: true
+            }, (err) => {
+                if (err) return;
+                loader.style.opacity = '0';
+                setTimeout(() => loader.classList.add('hidden'), 500);
+                Quagga.start();
+                scannerActive = true;
+            });
+
+            Quagga.onDetected(res => {
+                const code = res.codeResult.code;
+                const now = Date.now();
+                if (now - lastScanTime > 2000) {
+                    const item = inventory.find(i => i.id === code);
+                    if (item) {
+                        lastScanTime = now;
+                        playBeep();
+                        const flash = document.getElementById('flash');
+                        flash.classList.add('flash-active');
+                        setTimeout(() => flash.classList.remove('flash-active'), 200);
+                        cart.unshift({ ...item, cartId: now });
+                        renderCart();
+                    }
+                }
+            });
+        }
+
+        function renderCart() {
+            const list = document.getElementById('basket-list');
+            const totalEl = document.getElementById('display-total');
+            const countEl = document.getElementById('item-count');
+            
+            if (cart.length === 0) {
+                list.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-slate-200 py-10"><span class="text-6xl mb-2">🛒</span><p class="font-bold text-sm">Basket is empty!</p></div>`;
+                totalEl.innerText = "$0.00";
+                countEl.innerText = "0 Items";
+                return;
+            }
+
+            let total = 0;
+            list.innerHTML = cart.map((item, idx) => {
+                total += item.price;
+                return `
+                    <div class="item-card flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                        <div>
+                            <p class="kids-font text-slate-800 text-sm">${item.name}</p>
+                            <p class="text-[10px] font-bold text-slate-400">#${item.id}</p>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <span class="kids-font text-blue-600 font-bold">$${item.price.toFixed(2)}</span>
+                            <button onclick="removeItem(${idx})" class="text-red-300 px-2 text-xl">✕</button>
+                        </div>
+                    </div>`;
+            }).join('');
+            totalEl.innerText = `$${total.toFixed(2)}`;
+            countEl.innerText = `${cart.length} ${cart.length === 1 ? 'Item' : 'Items'}`;
+        }
+
+        function removeItem(idx) { cart.splice(idx, 1); renderCart(); }
+        function clearBasket() { cart = []; renderCart(); }
+        function checkout() { if(cart.length > 0) { alert("🌟 Great shopping! 🌟"); clearBasket(); } }
+
+        function saveNewItem() {
+            const name = document.getElementById('in-name').value;
+            const price = parseFloat(document.getElementById('in-price').value);
+            if (!name || isNaN(price)) return;
+            const id = Math.floor(1000 + Math.random() * 8999).toString();
+            inventory.push({ id, name, price });
+            localStorage.setItem('market_inventory', JSON.stringify(inventory));
+            document.getElementById('in-name').value = '';
+            document.getElementById('in-price').value = '';
+            renderInventory();
+        }
+
+        function renderInventory() {
+            const grid = document.getElementById('inventory-grid');
+            grid.innerHTML = [...inventory].reverse().map(item => `
+                <div class="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center gap-2">
+                    <div class="w-full flex justify-between font-bold text-sm">
+                        <span>${item.name}</span>
+                        <span class="text-blue-600">$${item.price.toFixed(2)}</span>
+                    </div>
+                    <svg id="bc-${item.id}" class="max-w-full"></svg>
+                </div>`).join('');
+            inventory.forEach(item => {
+                JsBarcode(`#bc-${item.id}`, item.id, { format: "CODE128", width: 2, height: 40, displayValue: true });
+            });
+        }
+
+        function switchTab(tab) {
+            const isPlay = tab === 'play';
+            document.getElementById('play-screen').classList.toggle('hidden', !isPlay);
+            document.getElementById('manage-screen').classList.toggle('hidden', isPlay);
+            document.getElementById('btn-play').className = isPlay ? "kids-font px-5 py-2 rounded-xl text-sm font-semibold bg-white shadow-sm text-blue-600" : "kids-font px-5 py-2 rounded-xl text-sm font-semibold text-slate-500";
+            document.getElementById('btn-manage').className = !isPlay ? "kids-font px-5 py-2 rounded-xl text-sm font-semibold bg-white shadow-sm text-blue-600" : "kids-font px-5 py-2 rounded-xl text-sm font-semibold text-slate-500";
+            if (isPlay) { if(!scannerActive) startCamera(); } else { Quagga.stop(); scannerActive = false; renderInventory(); }
+        }
+
+        window.onload = () => { renderCart(); startCamera(); };
+    </script>
+</body>
+</html>
