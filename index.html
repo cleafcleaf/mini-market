@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Mini Market Scanner</title>
     
-    <!-- PWA Meta Tags -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Mini Market">
@@ -21,8 +20,10 @@
             font-family: 'Quicksand', sans-serif;
             background-color: #f8fafc;
             touch-action: manipulation;
-            overflow: hidden;
+            overflow: hidden; /* Keeps the app from bouncing/scrolling as a whole */
             height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
 
         .kids-font { font-family: 'Fredoka', sans-serif; }
@@ -30,23 +31,15 @@
         #camera-wrapper {
             position: relative;
             width: 100%;
-            height: 40vh; 
+            height: 35vh; 
             background: #000;
             overflow: hidden;
             border-bottom: 8px solid #3b82f6;
+            flex-shrink: 0;
         }
 
-        #interactive.viewport {
-            width: 100%;
-            height: 100%;
-        }
-
-        #interactive.viewport video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
+        #interactive.viewport { width: 100%; height: 100%; }
+        #interactive.viewport video { width: 100%; height: 100%; object-fit: cover; }
         canvas.drawingBuffer { display: none; }
 
         .scanner-overlay {
@@ -91,9 +84,7 @@
             100% { background: transparent; }
         }
 
-        .btn-bubble:active {
-            transform: scale(0.96);
-        }
+        .btn-bubble:active { transform: scale(0.96); }
 
         .item-card {
             animation: slideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -102,11 +93,17 @@
             from { transform: translateY(10px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
         }
+
+        /* Essential Scroll Fix */
+        #manage-screen:not(.hidden) {
+            display: flex;
+            flex-direction: column;
+        }
     </style>
 </head>
-<body class="flex flex-col h-full bg-slate-50">
+<body class="bg-slate-50">
 
-    <header class="bg-white px-4 py-3 flex justify-between items-center shadow-sm z-50">
+    <header class="bg-white px-4 py-3 flex justify-between items-center shadow-sm z-50 flex-shrink-0">
         <div class="flex items-center gap-2">
             <span class="text-2xl">🛒</span>
             <h1 class="kids-font text-blue-600 text-xl font-semibold tracking-tight">Mini Market</h1>
@@ -117,7 +114,7 @@
         </div>
     </header>
 
-    <main id="play-screen" class="flex-1 flex flex-col h-full overflow-hidden">
+    <main id="play-screen" class="flex-1 flex flex-col overflow-hidden">
         <div id="camera-wrapper">
             <div id="interactive" class="viewport"></div>
             <div class="scanner-overlay">
@@ -144,13 +141,12 @@
             </div>
 
             <div id="basket-list" class="flex-1 overflow-y-auto p-4 space-y-3">
-                <!-- Items go here -->
-            </div>
+                </div>
 
-            <div class="p-6 pb-10 bg-white border-t-4 border-blue-50 flex items-center justify-between">
+            <div class="p-6 pb-8 bg-white border-t-4 border-blue-50 flex items-center justify-between flex-shrink-0">
                 <div>
                     <p class="text-[10px] font-bold text-slate-400 uppercase">Total</p>
-                    <p id="display-total" class="kids-font text-5xl text-blue-600 leading-none">$0.00</p>
+                    <p id="display-total" class="kids-font text-4xl text-blue-600 leading-none">$0.00</p>
                 </div>
                 <button onclick="checkout()" class="btn-bubble bg-blue-600 text-white kids-font px-8 py-4 rounded-3xl text-lg shadow-xl shadow-blue-200 transition-transform">
                     CHECKOUT
@@ -159,16 +155,18 @@
         </div>
     </main>
 
-    <main id="manage-screen" class="hidden flex-1 overflow-y-auto bg-slate-50 p-6 pb-24">
-        <div class="max-w-md mx-auto">
+    <main id="manage-screen" class="hidden flex-1 overflow-y-auto bg-slate-50 p-6">
+        <div class="max-w-md mx-auto pb-24">
             <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 mb-8">
                 <h3 class="kids-font text-lg text-slate-800 mb-4 text-center">Create New Item</h3>
                 <div class="space-y-4">
-                    <input type="text" id="in-name" placeholder="Item Name" class="w-full p-4 rounded-2xl bg-slate-50 outline-none border-2 border-transparent focus:border-blue-400">
+                    <input type="text" id="in-name" placeholder="Item Name (e.g. Banana)" class="w-full p-4 rounded-2xl bg-slate-50 outline-none border-2 border-transparent focus:border-blue-400">
                     <input type="number" id="in-price" placeholder="Price ($)" step="0.01" class="w-full p-4 rounded-2xl bg-slate-50 outline-none border-2 border-transparent focus:border-blue-400">
                     <button onclick="saveNewItem()" class="btn-bubble w-full bg-blue-600 text-white kids-font py-4 rounded-2xl font-bold transition-transform">SAVE ITEM</button>
                 </div>
             </div>
+            
+            <h3 class="kids-font text-slate-400 text-xs uppercase tracking-widest mb-4 ml-2">Current Inventory</h3>
             <div id="inventory-grid" class="space-y-4"></div>
         </div>
     </main>
@@ -187,23 +185,38 @@
         let audioCtx = null;
 
         function playBeep() {
-            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const osc = audioCtx.createOscillator();
-            const g = audioCtx.createGain();
-            osc.frequency.setValueAtTime(900, audioCtx.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-            osc.connect(g); g.connect(audioCtx.destination);
-            osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                
+                const osc = audioCtx.createOscillator();
+                const g = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(900, audioCtx.currentTime);
+                g.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.connect(g); g.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+            } catch(e) { console.log("Audio blocked"); }
         }
 
         function startCamera() {
             const loader = document.getElementById('camera-loading');
             Quagga.init({
-                inputStream: { name: "Live", type: "LiveStream", target: document.querySelector('#interactive'), constraints: { facingMode: "environment" } },
+                inputStream: { 
+                    name: "Live", 
+                    type: "LiveStream", 
+                    target: document.querySelector('#interactive'), 
+                    constraints: { facingMode: "environment" } 
+                },
                 decoder: { readers: ["code_128_reader", "ean_reader"] },
                 locate: true
             }, (err) => {
-                if (err) return;
+                if (err) {
+                    console.error(err);
+                    alert("Camera error. Please ensure you have given permission.");
+                    return;
+                }
                 loader.style.opacity = '0';
                 setTimeout(() => loader.classList.add('hidden'), 500);
                 Quagga.start();
@@ -266,7 +279,10 @@
         function saveNewItem() {
             const name = document.getElementById('in-name').value;
             const price = parseFloat(document.getElementById('in-price').value);
-            if (!name || isNaN(price)) return;
+            if (!name || isNaN(price)) {
+                alert("Please enter a name and price!");
+                return;
+            }
             const id = Math.floor(1000 + Math.random() * 8999).toString();
             inventory.push({ id, name, price });
             localStorage.setItem('market_inventory', JSON.stringify(inventory));
@@ -278,15 +294,23 @@
         function renderInventory() {
             const grid = document.getElementById('inventory-grid');
             grid.innerHTML = [...inventory].reverse().map(item => `
-                <div class="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center gap-2">
-                    <div class="w-full flex justify-between font-bold text-sm">
-                        <span>${item.name}</span>
+                <div class="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center gap-2 shadow-sm">
+                    <div class="w-full flex justify-between font-bold text-sm mb-2">
+                        <span class="kids-font text-slate-700">${item.name}</span>
                         <span class="text-blue-600">$${item.price.toFixed(2)}</span>
                     </div>
                     <svg id="bc-${item.id}" class="max-w-full"></svg>
                 </div>`).join('');
+            
             inventory.forEach(item => {
-                JsBarcode(`#bc-${item.id}`, item.id, { format: "CODE128", width: 2, height: 40, displayValue: true });
+                JsBarcode(`#bc-${item.id}`, item.id, { 
+                    format: "CODE128", 
+                    width: 2, 
+                    height: 50, 
+                    displayValue: true,
+                    fontSize: 14,
+                    font: "monospace"
+                });
             });
         }
 
@@ -294,12 +318,29 @@
             const isPlay = tab === 'play';
             document.getElementById('play-screen').classList.toggle('hidden', !isPlay);
             document.getElementById('manage-screen').classList.toggle('hidden', isPlay);
-            document.getElementById('btn-play').className = isPlay ? "kids-font px-5 py-2 rounded-xl text-sm font-semibold bg-white shadow-sm text-blue-600" : "kids-font px-5 py-2 rounded-xl text-sm font-semibold text-slate-500";
-            document.getElementById('btn-manage').className = !isPlay ? "kids-font px-5 py-2 rounded-xl text-sm font-semibold bg-white shadow-sm text-blue-600" : "kids-font px-5 py-2 rounded-xl text-sm font-semibold text-slate-500";
-            if (isPlay) { if(!scannerActive) startCamera(); } else { Quagga.stop(); scannerActive = false; renderInventory(); }
+            
+            // UI Button styling
+            document.getElementById('btn-play').className = isPlay 
+                ? "kids-font px-5 py-2 rounded-xl text-sm font-semibold bg-white shadow-sm text-blue-600" 
+                : "kids-font px-5 py-2 rounded-xl text-sm font-semibold text-slate-500";
+            
+            document.getElementById('btn-manage').className = !isPlay 
+                ? "kids-font px-5 py-2 rounded-xl text-sm font-semibold bg-white shadow-sm text-blue-600" 
+                : "kids-font px-5 py-2 rounded-xl text-sm font-semibold text-slate-500";
+            
+            if (isPlay) {
+                if(!scannerActive) startCamera();
+            } else {
+                Quagga.stop();
+                scannerActive = false;
+                renderInventory();
+            }
         }
 
-        window.onload = () => { renderCart(); startCamera(); };
+        window.onload = () => { 
+            renderCart(); 
+            startCamera(); 
+        };
     </script>
 </body>
 </html>
