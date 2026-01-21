@@ -292,8 +292,11 @@
         }
 
         function deleteInventoryItem(id) {
+            // Remove from the internal array
             inventory = inventory.filter(item => item.id !== id);
+            // Save the updated array to phone storage
             localStorage.setItem('market_inventory', JSON.stringify(inventory));
+            // Refresh the screen
             renderInventory();
         }
 
@@ -301,15 +304,25 @@
             const grid = document.getElementById('inventory-grid');
             grid.innerHTML = [...inventory].reverse().map(item => `
                 <div class="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center gap-2 relative">
-                    <button onclick="deleteInventoryItem('${item.id}')" class="absolute top-4 right-4 text-slate-300 hover:text-red-400 text-sm font-bold">DELETE</button>
-                    <div class="w-full flex justify-between font-bold text-sm pr-12">
+                    <!-- Delete Button -->
+                    <button onclick="deleteInventoryItem('${item.id}')" class="absolute top-4 right-4 text-slate-300 hover:text-red-500 active:text-red-600 text-xs font-bold tracking-tight">DELETE</button>
+                    
+                    <div class="w-full flex justify-between font-bold text-sm pr-16">
                         <span>${item.name}</span>
                         <span class="text-blue-600">$${item.price.toFixed(2)}</span>
                     </div>
                     <svg id="bc-${item.id}" class="max-w-full"></svg>
                 </div>`).join('');
+            
             inventory.forEach(item => {
-                JsBarcode(`#bc-${item.id}`, item.id, { format: "CODE128", width: 2, height: 40, displayValue: true });
+                JsBarcode(`#bc-${item.id}`, item.id, { 
+                    format: "CODE128", 
+                    width: 2, 
+                    height: 40, 
+                    displayValue: true,
+                    fontSize: 14,
+                    font: "Fredoka"
+                });
             });
         }
 
@@ -318,7 +331,6 @@
             document.getElementById('play-screen').classList.toggle('hidden', !isPlay);
             document.getElementById('manage-screen').classList.toggle('hidden', isPlay);
             
-            // Fix CSS for active button
             const activeClass = "kids-font px-5 py-2 rounded-xl text-sm font-semibold bg-white shadow-sm text-blue-600";
             const inactiveClass = "kids-font px-5 py-2 rounded-xl text-sm font-semibold text-slate-500";
             
