@@ -291,11 +291,18 @@
             renderInventory();
         }
 
+        function deleteInventoryItem(id) {
+            inventory = inventory.filter(item => item.id !== id);
+            localStorage.setItem('market_inventory', JSON.stringify(inventory));
+            renderInventory();
+        }
+
         function renderInventory() {
             const grid = document.getElementById('inventory-grid');
             grid.innerHTML = [...inventory].reverse().map(item => `
-                <div class="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center gap-2">
-                    <div class="w-full flex justify-between font-bold text-sm">
+                <div class="bg-white p-5 rounded-3xl border border-slate-200 flex flex-col items-center gap-2 relative">
+                    <button onclick="deleteInventoryItem('${item.id}')" class="absolute top-4 right-4 text-slate-300 hover:text-red-400 text-sm font-bold">DELETE</button>
+                    <div class="w-full flex justify-between font-bold text-sm pr-12">
                         <span>${item.name}</span>
                         <span class="text-blue-600">$${item.price.toFixed(2)}</span>
                     </div>
